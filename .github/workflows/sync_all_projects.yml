@@ -1,0 +1,76 @@
+name: Sync All Projects Into Structured Library
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync-projects:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: sudo apt-get install -y jq
+
+      - name: Fetch all repositories of alsopranab
+        run: |
+          mkdir temp_repos
+          cd temp_repos
+
+          curl -s https://api.github.com/users/alsopranab/repos?per_page=100 \
+          | jq -r '.[].clone_url' > repos.txt
+
+          while read repo; do
+            git clone "$repo"
+          done < repos.txt
+
+      - name: Create library folders
+        run: |
+          mkdir -p library/sql
+          mkdir -p library/python
+          mkdir -p library/notebooks
+          mkdir -p library/datasets
+
+      - name: Copy SQL files
+        run: |
+          find temp_repos -type f -iname "*.sql" \
+          -exec cp --parents {} library/sql/ \;
+
+      - name: Copy Python files
+        run: |
+          find temp_repos -type f -iname "*.py" \
+          -exec cp --parents {} library/python/ \;
+
+      - name: Copy Jupyter notebooks
+        run: |
+          find temp_repos -type f -iname "*.ipynb" \
+          -exec cp --parents {} library/notebooks/ \;
+
+      - name: Copy datasets
+        run: |
+          find temp_repos -type f \( -iname "*.csv" -o -iname "*.xlsx" \) \
+          -exec cp --parents {} library/datasets/ \;
+
+      - name: Cleanup
+        run: rm -rf temp_repos
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add library
+
+          if git diff --cached --quiet; then
+            echo "No changes detected"
+          else
+            git commit -m "Sync SQL, Python projects and datasets into structured library"
+            git push
+          fi
