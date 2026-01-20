@@ -1,0 +1,40 @@
+name: Fetch All SQL Problems
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch-sql:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Fetch all repositories of alsopranab
+        run: |
+          mkdir repos
+          cd repos
+
+          curl -s https://api.github.com/users/alsopranab/repos?per_page=100 \
+          | jq -r '.[].clone_url' > repo_urls.txt
+
+          while read repo; do
+            git clone "$repo"
+          done < repo_urls.txt
+
+      - name: Collect all SQL files
+        run: |
+          mkdir -p all-sql-problems
+          find repos -type f -iname "*.sql" -exec cp --parents {} all-sql-problems/ \;
+
+      - name: Upload SQL problems as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sql-problems
+          path: all-sql-problems
